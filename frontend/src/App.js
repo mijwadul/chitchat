@@ -11,7 +11,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  useTheme
+  useTheme,
+  CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ReactMarkdown from 'react-markdown'; // Impor ReactMarkdown
@@ -22,15 +23,17 @@ function App() {
   const [openGithubDialog, setOpenGithubDialog] = useState(false);
   const [githubRepoUrl, setGithubRepoUrl] = useState('');
   const [githubQuestion, setGithubQuestion] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // State baru untuk loading
 
   const theme = useTheme();
 
   const handleSendMessage = async () => {
-    if (inputMessage.trim() === '') return;
+    if (inputMessage.trim() === '' || isLoading) return; // Jangan kirim jika input kosong atau sedang loading
 
     const newMessage = { text: inputMessage, sender: 'user' };
     setMessages((prevMessages) => [...prevMessages, newMessage]);
     setInputMessage('');
+    setIsLoading(true); // Set loading ke true saat memulai permintaan
 
     try {
       const response = await fetch('http://localhost:5000/api/chat', {
@@ -45,12 +48,14 @@ function App() {
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages((prevMessages) => [...prevMessages, { text: 'Maaf, terjadi kesalahan.', sender: 'ai' }]);
+    } finally {
+      setIsLoading(false); // Set loading ke false setelah permintaan selesai (berhasil/gagal)
     }
   };
 
   const handleAnalyzeGithubRepo = async () => {
-    if (githubRepoUrl.trim() === '' || githubQuestion.trim() === '') {
-      alert('URL Repositori dan Pertanyaan tidak boleh kosong!');
+    if (githubRepoUrl.trim() === '' || githubQuestion.trim() === '' || isLoading) {
+      alert('URL Repositori dan Pertanyaan tidak boleh kosong atau sedang memuat!');
       return;
     }
 
@@ -59,6 +64,7 @@ function App() {
     setOpenGithubDialog(false);
     setGithubRepoUrl('');
     setGithubQuestion('');
+    setIsLoading(true); // Set loading ke true saat memulai permintaan
 
     try {
       const response = await fetch('http://localhost:5000/api/analyze-github-repo', {
@@ -73,6 +79,8 @@ function App() {
     } catch (error) {
       console.error('Error analyzing GitHub repo:', error);
       setMessages((prevMessages) => [...prevMessages, { text: 'Maaf, terjadi kesalahan saat menganalisis repositori GitHub.', sender: 'ai' }]);
+    } finally {
+      setIsLoading(false); // Set loading ke false setelah permintaan selesai (berhasil/gagal)
     }
   };
 
@@ -113,19 +121,26 @@ function App() {
               borderRadius: theme.shape.borderRadius,
             }}
           >
-            {/* --- BAGIAN YANG BERUBAH --- */}
             {msg.sender === 'ai' ? (
               <ReactMarkdown>{msg.text}</ReactMarkdown>
             ) : (
               <Typography variant="body1">{msg.text}</Typography>
             )}
-            {/* --- AKHIR BAGIAN YANG BERUBAH --- */}
           </Paper>
         ))}
+        {/* Indikator Loading */}
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+            <CircularProgress />
+            <Typography variant="body1" sx={{ ml: 2, color: theme.palette.text.secondary }}>
+              Sedang berpikir...
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       <Box sx={{ display: 'flex', gap: theme.spacing(1) }}>
-        <IconButton color="primary" onClick={() => setOpenGithubDialog(true)}>
+        <IconButton color="primary" onClick={() => setOpenGithubDialog(true)} disabled={isLoading}>
           <AddIcon />
         </IconButton>
         <TextField
@@ -137,8 +152,9 @@ function App() {
           onKeyPress={(e) => {
             if (e.key === 'Enter') handleSendMessage();
           }}
+          disabled={isLoading} // Nonaktifkan input saat loading
         />
-        <Button variant="contained" onClick={handleSendMessage}>
+        <Button variant="contained" onClick={handleSendMessage} disabled={isLoading}>
           Kirim
         </Button>
       </Box>
@@ -157,6 +173,7 @@ function App() {
             value={githubRepoUrl}
             onChange={(e) => setGithubRepoUrl(e.target.value)}
             sx={{ mb: theme.spacing(2) }}
+            disabled={isLoading} // Nonaktifkan input saat loading
           />
           <TextField
             margin="dense"
@@ -169,11 +186,12 @@ function App() {
             placeholder="misal: Apa tujuan proyek ini dan teknologi utamanya?"
             value={githubQuestion}
             onChange={(e) => setGithubQuestion(e.target.value)}
+            disabled={isLoading} // Nonaktifkan input saat loading
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenGithubDialog(false)}>Batal</Button>
-          <Button onClick={handleAnalyzeGithubRepo} variant="contained" color="primary">
+          <Button onClick={() => setOpenGithubDialog(false)} disabled={isLoading}>Batal</Button>
+          <Button onClick={handleAnalyzeGithubRepo} variant="contained" color="primary" disabled={isLoading}>
             Analisis
           </Button>
         </DialogActions>
