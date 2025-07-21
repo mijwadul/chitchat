@@ -1,0 +1,17 @@
+# Jangan commit file env
+.env
+
+# Virtual environment
+venv/
+
+# Node modules (frontend)
+frontend/node_modules/
+
+# File cache / sementara
+__pycache__/
+*.pyc
+.DS_Store
+
+# IDE/editor settings
+.vscode/
+.idea/
