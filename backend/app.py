@@ -26,26 +26,29 @@ client = Together()
 MAX_CHARS = 2000 # Tetapkan batas karakter yang lebih kecil untuk pengujian
 
 # Fungsi untuk menghasilkan respons AI
-def generate_ai_response(prompt):
+def generate_ai_response(messages):
     try:
-        # --- PERUBAHAN KRITIS: Menggunakan client.chat.completions.create ---
         chat_completion = client.chat.completions.create(
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", # Menggunakan model yang Anda temukan
-            messages=[
-              {
-                "role": "user",
-                "content": prompt # Mengirim prompt sebagai pesan user
-              }
-            ],
-            max_tokens=500, # Batasi jumlah token respons dari AI
+            model="deepseek-ai/DeepSeek-R1-0528", # Atau model pilihan Anda
+            messages=messages,
+            max_tokens=500,
             temperature=0.7,
             top_p=0.7,
             top_k=50,
             repetition_penalty=1
         )
-        # --- PERUBAHAN KRITIS: Mengakses respons yang benar ---
-        return chat_completion.choices[0].message.content
-        # --- AKHIR PERUBAHAN KRITIS ---
+        ai_response_content = chat_completion.choices[0].message.content
+        
+        # --- TAMBAHKAN KODE PEMBESIHAN INI ---
+        # Menghapus tag <think>...</think> dari respons AI
+        import re
+        # Pola regex untuk menemukan <think>...</think> dan isinya (non-greedy)
+        cleaned_response = re.sub(r'<think>(.*?)</think>', '', ai_response_content, flags=re.DOTALL)
+        # Menghapus spasi berlebih atau baris kosong yang mungkin dihasilkan dari penghapusan
+        cleaned_response = cleaned_response.strip()
+        # --- AKHIR KODE PEMBESIHAN ---
+
+        return cleaned_response # Mengembalikan respons yang sudah dibersihkan
     except Exception as e:
         print(f"Error saat memanggil Together AI: {e}")
         traceback.print_exc()
@@ -60,7 +63,9 @@ def chat():
         return jsonify({"error": "Pesan tidak boleh kosong"}), 400
 
     try:
-        ai_response = generate_ai_response(user_message)
+        # Untuk chat umum, AI bisa langsung merespons pesan user
+        # Jika Anda ingin riwayat chat, frontend perlu mengirim array 'messages' lengkap
+        ai_response = generate_ai_response([{"role": "user", "content": user_message}])
         return jsonify({"response": ai_response})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -84,18 +89,28 @@ def analyze_github_repo():
         if len(repo_content_string) > MAX_CHARS:
             repo_content_string = repo_content_string[:MAX_CHARS] + "\n... (konten dipotong karena terlalu panjang)"
 
-        prompt = (
-            f"Saya ingin Anda menganalisis repositori GitHub ini dan menjawab pertanyaan saya.\n"
-            f"Konten repositori (dipotong jika terlalu panjang):\n```\n{repo_content_string}\n```\n\n"
-            f"Pertanyaan: {question}\n"
-            f"Berikan jawaban yang ringkas dan relevan berdasarkan konten yang diberikan."
+        # --- PERBAIKAN PROMPT DI SINI UNTUK FORMAT OUTPUT ---
+        system_prompt = (
+            f"Anda adalah seorang pengembang perangkat lunak ahli yang menganalisis repositori GitHub. "
+            f"Tugas Anda adalah memberikan jawaban yang komprehensif, relevan, dan terstruktur berdasarkan konten repositori yang disediakan dan pertanyaan pengguna. "
+            f"Fokus pada tujuan proyek, teknologi yang digunakan, struktur utama, dan fitur kunci. "
+            f"Jika informasi tidak cukup karena konten dipotong, jelaskan batasannya. "
+            f"**Format respons Anda sebagai daftar poin yang jelas (menggunakan tanda hubung '-') atau beberapa paragraf dengan judul bagian kecil jika relevan. Gunakan markdown untuk pemformatan jika sesuai (misalnya, bold untuk nama kunci).** "
+            f"Jawaban harus dalam bahasa Indonesia."
         )
 
-        # --- TAMBAHKAN BARIS DEBUGGING INI ---
-        print(f"DEBUG: Length of final prompt sent to AI: {len(prompt)}")
-        # ------------------------------------
+        repo_context = (
+            f"Berikut adalah konten file dari repositori GitHub yang relevan (dipotong jika terlalu panjang):\n"
+            f"```\n{repo_content_string}\n```"
+        )
+        
+        messages_for_ai = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{repo_context}\n\nPertanyaan saya: {question}"}
+        ]
+        # --- AKHIR PERBAIKAN PROMPT ---
 
-        ai_response = generate_ai_response(prompt)
+        ai_response = generate_ai_response(messages_for_ai)
         return jsonify({"response": ai_response})
 
     except Exception as e:
